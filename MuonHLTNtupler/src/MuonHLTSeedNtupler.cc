@@ -318,7 +318,7 @@ void MuonHLTSeedNtupler::Init()
   hltIter2IterL3FromL1MuonTrackMap.clear();
   hltIter3IterL3FromL1MuonTrackMap.clear();
 
-  cout<<"fucnk you"<<endl;
+  //cout<<"MuonHLTSeedNtupler::Init() called"<<endl;
   ST->clear();
   // SThltIterL3OISeedsFromL2Muons->clear();
   // SThltIter0IterL3MuonPixelSeedsFromPixelTracks->clear();
@@ -526,7 +526,7 @@ void MuonHLTSeedNtupler::fill_seedTemplate(
 
       // -- Track association
       ST->fill(seed, tracker);
-      cout<<"fuck tou"<<endl;
+      //cout<<"MuonHLTSeedNtupler::fill_seedTemplate() seed filled"<<endl;
       std::map<tmpTSOD,unsigned int>::const_iterator where = trkMap.find(seedTsod);
       int idxtmpL3 = (where==trkMap.end()) ? -1 : trkMap[seedTsod];
       ST->fill_TP(TTtrack, idxtmpL3 );

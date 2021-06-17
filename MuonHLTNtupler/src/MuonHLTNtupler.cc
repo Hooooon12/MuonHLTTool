@@ -126,8 +126,35 @@ t_lumiScaler_        ( consumes< LumiScalersCollection >                  (iConf
 t_offlineLumiScaler_ ( consumes< LumiScalersCollection >                  (iConfig.getUntrackedParameter<edm::InputTag>("offlineLumiScaler" )) ),
 t_PUSummaryInfo_     ( consumes< std::vector<PileupSummaryInfo> >         (iConfig.getUntrackedParameter<edm::InputTag>("PUSummaryInfo"     )) ),
 t_genEventInfo_      ( consumes< GenEventInfoProduct >                    (iConfig.getUntrackedParameter<edm::InputTag>("genEventInfo"      )) ),
-t_genParticle_       ( consumes< reco::GenParticleCollection >            (iConfig.getUntrackedParameter<edm::InputTag>("genParticle"       )) )
+t_genParticle_       ( consumes< reco::GenParticleCollection >            (iConfig.getUntrackedParameter<edm::InputTag>("genParticle"       )) ),
+
+
+//JH
+t_l1Matches_           ( consumes< pat::TriggerObjectStandAloneMatch >                (iConfig.getParameter<edm::InputTag>("l1Matches"))),
+t_l1MatchesQuality_    ( consumes< edm::ValueMap<int> >                               (iConfig.getParameter<edm::InputTag>("l1MatchesQuality"))),
+t_l1MatchesDeltaR_     ( consumes< edm::ValueMap<float> >                             (iConfig.getParameter<edm::InputTag>("l1MatchesDeltaR"))),
+t_l1MatchesByQ_        ( consumes< pat::TriggerObjectStandAloneMatch >                (iConfig.getParameter<edm::InputTag>("l1MatchesByQ"))),
+t_l1MatchesByQQuality_ ( consumes< edm::ValueMap<int> >                               (iConfig.getParameter<edm::InputTag>("l1MatchesByQQuality"))),
+t_l1MatchesByQDeltaR_  ( consumes< edm::ValueMap<float> >                             (iConfig.getParameter<edm::InputTag>("l1MatchesByQDeltaR"))),
+t_genView_             ( consumes< edm::View<reco::GenParticle> >                     (iConfig.getParameter<edm::InputTag>("genParticles"))) //JH
 {
+
+  trackCollectionNames_ = iConfig.getUntrackedParameter<std::vector<std::string>>("trackCollectionNames");
+  trackCollectionLabels_ = iConfig.getUntrackedParameter<std::vector<edm::InputTag> >("trackCollectionLabels");
+  associationLabels_      = iConfig.getUntrackedParameter<std::vector<edm::InputTag> >("associationLabels");
+  if( trackCollectionNames_.size() != trackCollectionLabels_.size() || trackCollectionLabels_.size() != associationLabels_.size()) {
+    throw cms::Exception("ConfigurationError")
+      << "Number of track collection names is different from number of track collection names or association labels";
+  }
+  for( unsigned int i = 0; i < trackCollectionNames_.size(); ++i) {
+    trackCollectionTokens_.push_back(     consumes< edm::View<reco::Track> >(  trackCollectionLabels_[i]) );
+    simToRecoCollectionTokens_.push_back( consumes<reco::SimToRecoCollection>( associationLabels_[i]) );
+    recoToSimCollectionTokens_.push_back( consumes<reco::RecoToSimCollection>( associationLabels_[i]) );
+    trkTemplates_.push_back( new trkTemplate() );
+    tpTemplates_.push_back(  new tpTemplate()  );
+  } //JH
+
+
   // mvaFileHltIterL3OISeedsFromL2Muons_B_0_                       = iConfig.getParameter<edm::FileInPath>("mvaFileHltIterL3OISeedsFromL2Muons_B_0");
   // mvaFileHltIterL3OISeedsFromL2Muons_B_1_                       = iConfig.getParameter<edm::FileInPath>("mvaFileHltIterL3OISeedsFromL2Muons_B_1");
   // mvaFileHltIterL3OISeedsFromL2Muons_B_2_                       = iConfig.getParameter<edm::FileInPath>("mvaFileHltIterL3OISeedsFromL2Muons_B_2");
@@ -257,6 +284,72 @@ void MuonHLTNtupler::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
       VThltIterL3FromL1MuonTrimmedPixelVertices->fill(*it);
   }
 
+  // -- gen-L1 matching
+  edm::Handle<pat::TriggerObjectStandAloneMatch> h_l1Matches;
+  iEvent.getByToken(t_l1Matches_, h_l1Matches);
+  edm::Handle<edm::ValueMap<int>> h_l1Qualities;
+  iEvent.getByToken(t_l1MatchesQuality_, h_l1Qualities);
+  edm::Handle<edm::ValueMap<float>> h_l1Drs;
+  iEvent.getByToken(t_l1MatchesDeltaR_, h_l1Drs);
+  edm::Handle<pat::TriggerObjectStandAloneMatch> h_l1MatchesByQ;
+  iEvent.getByToken(t_l1MatchesByQ_, h_l1MatchesByQ);
+  edm::Handle<edm::ValueMap<int>> h_l1QualitiesByQ;
+  iEvent.getByToken(t_l1MatchesByQQuality_, h_l1QualitiesByQ);
+  edm::Handle<edm::ValueMap<float>> h_l1DrsByQ;
+  iEvent.getByToken(t_l1MatchesByQDeltaR_, h_l1DrsByQ);
+  edm::Handle<edm::View<reco::GenParticle>> h_genView;
+  iEvent.getByToken(t_genView_, h_genView);
+
+/*
+  cout << "genView size : " << h_genView->size() << endl;
+  cout << "l1Matches size : " << h_l1Matches->size() << endl;
+  cout << "l1MatchesByQ size : " << h_l1MatchesByQ->size() << endl;
+  for (unsigned int i=0; i<h_genView->size(); i++) {
+
+    // Gen-L1 matching
+    auto genRef = h_genView->refAt(i);
+    pat::TriggerObjectStandAloneRef genl1Match = (*h_l1Matches)[genRef];
+    cout << "==" << i << "th gen==" << endl;
+    if (genl1Match.isNonnull()) {
+      cout << "genl1Match is Nonnull;" << endl;
+      cout << "pt : " << genl1Match->pt() << ", eta : " << genl1Match->eta() << ", phi : " << genl1Match->phi() << ", charge : " << genl1Match->charge() << endl;
+      cout << "quality : " << (*h_l1Qualities)[genRef] << ", dR : " << (*h_l1Drs)[genRef] << endl;
+      genParticle_l1pt_[i]      = genl1Match->pt();
+      genParticle_l1eta_[i]     = genl1Match->eta();
+      genParticle_l1phi_[i]     = genl1Match->phi();
+      genParticle_l1charge_[i]  = genl1Match->charge();
+      genParticle_l1q_[i]       = (*h_l1Qualities)[genRef];
+      genParticle_l1dr_[i]      = (*h_l1Drs)[genRef];
+    } else {
+      cout << "genl1Match is NULL;" << endl;
+      genParticle_l1pt_[i]      = -99.;
+      genParticle_l1eta_[i]     = -99.;
+      genParticle_l1phi_[i]     = -99.;
+      genParticle_l1charge_[i]  = -99.;
+      genParticle_l1q_[i]       = -99.;
+      genParticle_l1dr_[i]      = -99.;
+    }
+
+    pat::TriggerObjectStandAloneRef genl1MatchByQ = (*h_l1MatchesByQ)[genRef];
+    if (genl1MatchByQ.isNonnull()) {
+      genParticle_l1ptByQ_[i]      = genl1MatchByQ->pt();
+      genParticle_l1etaByQ_[i]     = genl1MatchByQ->eta();
+      genParticle_l1phiByQ_[i]     = genl1MatchByQ->phi();
+      genParticle_l1chargeByQ_[i]  = genl1MatchByQ->charge();
+      genParticle_l1qByQ_[i]       = (*h_l1QualitiesByQ)[genRef];
+      genParticle_l1drByQ_[i]      = (*h_l1DrsByQ)[genRef];
+    } else {
+      genParticle_l1ptByQ_[i]      = -99.;
+      genParticle_l1etaByQ_[i]     = -99.;
+      genParticle_l1phiByQ_[i]     = -99.;
+      genParticle_l1chargeByQ_[i]  = -99.;
+      genParticle_l1qByQ_[i]       = -99.;
+      genParticle_l1drByQ_[i]      = -99.;
+    }
+
+  } //JH
+*/
+
   if( isRealData_ )
   {
     bunchID_ = iEvent.bunchCrossing();
@@ -302,7 +395,7 @@ void MuonHLTNtupler::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
   } // -- end of isMC -- //
 
   // -- fill each object
-  // Fill_L1Track(iEvent, iSetup);
+  // /rticlFill_L1Track(iEvent, iSetup);
   Fill_Muon(iEvent);
   Fill_HLT(iEvent, 0); // -- original HLT objects saved in data taking
   // Fill_HLT(iEvent, 1); // -- rerun objects
@@ -315,6 +408,72 @@ void MuonHLTNtupler::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
     Fill_TP(iEvent, TrkParticle);
   }
 
+  for( unsigned int i = 0; i < trackCollectionNames_.size(); ++i) {
+    //bool doIso = (i == trackCollectionNames_.size()-1);
+    bool doIso = false;
+    fill_trackTemplate( iEvent, trackCollectionTokens_.at(i), recoToSimCollectionTokens_.at(i), trkTemplates_.at(i), doIso );
+    fill_tpTemplate(    iEvent,                               simToRecoCollectionTokens_.at(i), tpTemplates_.at(i) );
+  } //JH
+
+  cout << "genView size : " << h_genView->size() << endl;
+  cout << "l1Matches size : " << h_l1Matches->size() << endl;
+  cout << "l1MatchesByQ size : " << h_l1MatchesByQ->size() << endl;
+
+  int _nGenView = 0;
+  for (unsigned int i=0; i<h_genView->size(); i++) {
+
+    // Gen-L1 matching
+    auto genRef = h_genView->refAt(i);
+
+    if( abs((*h_genView)[i].pdgId()) == 13 ) // -- only muons -- //
+    {
+      pat::TriggerObjectStandAloneRef genl1Match = (*h_l1Matches)[genRef];
+      cout << "==" << i << "th gen==" << endl;
+      cout << "pdgId : " << (*h_genView)[i].pdgId() << ", status : " << (*h_genView)[i].status() << endl;
+      if (genl1Match.isNonnull()) {
+        cout << "genl1Match is Nonnull;" << endl;
+        cout << "pt : " << genl1Match->pt() << ", eta : " << genl1Match->eta() << ", phi : " << genl1Match->phi() << ", charge : " << genl1Match->charge() << endl;
+        cout << "quality : " << (*h_l1Qualities)[genRef] << ", dR : " << (*h_l1Drs)[genRef] << endl;
+        genParticle_l1pt_[_nGenView]      = genl1Match->pt();
+        genParticle_l1eta_[_nGenView]     = genl1Match->eta();
+        genParticle_l1phi_[_nGenView]     = genl1Match->phi();
+        genParticle_l1charge_[_nGenView]  = genl1Match->charge();
+        genParticle_l1q_[_nGenView]       = (*h_l1Qualities)[genRef];
+        genParticle_l1dr_[_nGenView]      = (*h_l1Drs)[genRef];
+      } else {
+        cout << "genl1Match is NULL;" << endl;
+        genParticle_l1pt_[_nGenView]      = -99.;
+        genParticle_l1eta_[_nGenView]     = -99.;
+        genParticle_l1phi_[_nGenView]     = -99.;
+        genParticle_l1charge_[_nGenView]  = -99.;
+        genParticle_l1q_[_nGenView]       = -99.;
+        genParticle_l1dr_[_nGenView]      = -99.;
+      }
+
+      pat::TriggerObjectStandAloneRef genl1MatchByQ = (*h_l1MatchesByQ)[genRef];
+      if (genl1MatchByQ.isNonnull()) {
+        genParticle_l1ptByQ_[_nGenView]      = genl1MatchByQ->pt();
+        genParticle_l1etaByQ_[_nGenView]     = genl1MatchByQ->eta();
+        genParticle_l1phiByQ_[_nGenView]     = genl1MatchByQ->phi();
+        genParticle_l1chargeByQ_[_nGenView]  = genl1MatchByQ->charge();
+        genParticle_l1qByQ_[_nGenView]       = (*h_l1QualitiesByQ)[genRef];
+        genParticle_l1drByQ_[_nGenView]      = (*h_l1DrsByQ)[genRef];
+      } else {
+        genParticle_l1ptByQ_[_nGenView]      = -99.;
+        genParticle_l1etaByQ_[_nGenView]     = -99.;
+        genParticle_l1phiByQ_[_nGenView]     = -99.;
+        genParticle_l1chargeByQ_[_nGenView]  = -99.;
+        genParticle_l1qByQ_[_nGenView]       = -99.;
+        genParticle_l1drByQ_[_nGenView]      = -99.;
+      }
+
+      _nGenView++;
+    }
+  } //JH
+
+  nGenView_ = _nGenView;
+  cout << "nGenView_ = " << nGenView_ << endl;
+  cout << "ntuple_->Fill();" << endl;
   ntuple_->Fill();
 }
 
@@ -527,6 +686,7 @@ void MuonHLTNtupler::Init()
   genEventWeight_ = -999;
 
   nGenParticle_ = 0;
+  nGenView_ = 0;
   for( int i=0; i<arrSize_; i++)
   {
     genParticle_ID_[i] = -999;
@@ -541,6 +701,21 @@ void MuonHLTNtupler::Init()
     genParticle_pz_[i]     = -999;
     genParticle_energy_[i] = -999;
     genParticle_charge_[i] = -999;
+
+    //JH
+    genParticle_l1pt_[i]     = -999;
+    genParticle_l1eta_[i]    = -999;
+    genParticle_l1phi_[i]    = -999;
+    genParticle_l1charge_[i] = -999;
+    genParticle_l1q_[i]     = -999;
+    genParticle_l1dr_[i]     = -999;
+    genParticle_l1ptByQ_[i]     = -999;
+    genParticle_l1etaByQ_[i]    = -999;
+    genParticle_l1phiByQ_[i]    = -999;
+    genParticle_l1chargeByQ_[i] = -999;
+    genParticle_l1qByQ_[i]     = -999;
+    genParticle_l1drByQ_[i]     = -999;
+    //
 
     genParticle_isPrompt_[i] = 0;
     genParticle_isPromptFinalState_[i] = 0;
@@ -799,6 +974,12 @@ void MuonHLTNtupler::Init()
 
   VThltIterL3MuonTrimmedPixelVertices->clear();
   VThltIterL3FromL1MuonTrimmedPixelVertices->clear();
+
+  for( unsigned int i = 0; i < trackCollectionNames_.size(); ++i) {
+    trkTemplates_.at(i)->clear();
+    tpTemplates_.at(i)->clear();
+  } //JH
+
 }
 
 void MuonHLTNtupler::Make_Branch()
@@ -897,6 +1078,19 @@ void MuonHLTNtupler::Make_Branch()
   ntuple_->Branch("genParticle_pz", &genParticle_pz_, "genParticle_pz[nGenParticle]/D");
   ntuple_->Branch("genParticle_energy", &genParticle_energy_, "genParticle_energy[nGenParticle]/D");
   ntuple_->Branch("genParticle_charge", &genParticle_charge_, "genParticle_charge[nGenParticle]/D");
+  ntuple_->Branch("nGenView", &nGenView_, "nGenView/I");
+  ntuple_->Branch("genParticle_l1pt", &genParticle_l1pt_, "genParticle_l1pt[nGenView]/D");
+  ntuple_->Branch("genParticle_l1eta", &genParticle_l1eta_, "genParticle_l1eta[nGenView]/D");
+  ntuple_->Branch("genParticle_l1phi", &genParticle_l1phi_, "genParticle_l1phi[nGenView]/D");
+  ntuple_->Branch("genParticle_l1charge", &genParticle_l1charge_, "genParticle_l1charge[nGenView]/D");
+  ntuple_->Branch("genParticle_l1q", &genParticle_l1q_, "genParticle_l1q[nGenView]/I");
+  ntuple_->Branch("genParticle_l1dr", &genParticle_l1dr_, "genParticle_l1dr[nGenView]/D");
+  ntuple_->Branch("genParticle_l1ptByQ", &genParticle_l1ptByQ_, "genParticle_l1ptByQ[nGenView]/D");
+  ntuple_->Branch("genParticle_l1etaByQ", &genParticle_l1etaByQ_, "genParticle_l1etaByQ[nGenView]/D");
+  ntuple_->Branch("genParticle_l1phiByQ", &genParticle_l1phiByQ_, "genParticle_l1phiByQ[nGenView]/D");
+  ntuple_->Branch("genParticle_l1chargeByQ", &genParticle_l1chargeByQ_, "genParticle_l1chargeByQ[nGenView]/D");
+  ntuple_->Branch("genParticle_l1qByQ", &genParticle_l1qByQ_, "genParticle_l1qByQ[nGenView]/I");
+  ntuple_->Branch("genParticle_l1drByQ", &genParticle_l1drByQ_, "genParticle_l1drByQ[nGenView]/D"); //JH
   ntuple_->Branch("genParticle_isPrompt", &genParticle_isPrompt_, "genParticle_isPrompt[nGenParticle]/I");
   ntuple_->Branch("genParticle_isPromptFinalState", &genParticle_isPromptFinalState_, "genParticle_isPromptFinalState[nGenParticle]/I");
   ntuple_->Branch("genParticle_isTauDecayProduct", &genParticle_isTauDecayProduct_, "genParticle_isTauDecayProduct[nGenParticle]/I");
@@ -1096,6 +1290,21 @@ void MuonHLTNtupler::Make_Branch()
 
   VThltIterL3MuonTrimmedPixelVertices->setBranch(ntuple_,"hltIterL3MuonTrimmedPixelVertices");
   VThltIterL3FromL1MuonTrimmedPixelVertices->setBranch(ntuple_,"hltIterL3FromL1MuonTrimmedPixelVertices");
+
+  for( unsigned int i = 0; i < trackCollectionNames_.size(); ++i) {
+    TString trkName = TString(trackCollectionNames_.at(i));
+    TString tpName  = "tpTo_" + TString(trackCollectionNames_.at(i));
+
+    //bool doIso = (i == trackCollectionNames_.size()-1);
+
+    //if(doIso)
+    //  trkTemplates_.at(i)->setIsoTags( trkIsoTags_, pfIsoTags_ );
+
+    //trkTemplates_.at(i)->setBranch(ntuple_, trkName, doIso );
+    trkTemplates_.at(i)->setBranch(ntuple_, trkName );
+    tpTemplates_.at(i)->setBranch(ntuple_,  tpName );
+  } //JH
+
 }
 
 /*
@@ -1716,6 +1925,9 @@ void MuonHLTNtupler::Fill_GenParticle(const edm::Event &iEvent)
   nGenParticle_ = _nGenParticle;
 }
 
+//JH : do I need to create Fill_GenView here?
+
+
 void MuonHLTNtupler::Fill_IterL3(const edm::Event &iEvent, const edm::EventSetup &iSetup)
 {
   //////////////////////////
@@ -2271,6 +2483,187 @@ void MuonHLTNtupler::fill_trackTemplate(
   }
 }
 
+void MuonHLTNtupler::fill_trackTemplate(
+  const edm::Event &iEvent,
+  edm::EDGetTokenT<edm::View<reco::Track>>& trkToken,
+  edm::EDGetTokenT<reco::RecoToSimCollection>& assoToken,
+  trkTemplate* TTtrack,
+  bool doIso = false
+) {
+
+  edm::Handle<edm::View<reco::Track>> trkHandle;
+  if( iEvent.getByToken( trkToken, trkHandle ) ) {
+
+    /* JH
+    edm::Handle<reco::RecoChargedCandidateCollection> h_L3Muon;
+    if(doIso) {
+      bool hasL3Muon = iEvent.getByToken( t_L3Muon_, h_L3Muon );
+      if(!hasL3Muon) {
+        throw cms::Exception("ConfigurationError")
+              << "getByToken failed for L3 Muon Candidates, it is needed for Iso maps";
+      }
+      if( h_L3Muon->size() != trkHandle->size() ) {
+        throw cms::Exception("ConfigurationError")
+            << "h_L3Muon->size() != trkHandle->size()";
+      }
+    } */
+
+    edm::Handle<reco::RecoToSimCollection> assoHandle;
+    if( iEvent.getByToken( assoToken, assoHandle ) ) {
+      auto recSimColl = *assoHandle.product();
+
+      for( unsigned int i = 0; i < trkHandle->size(); i++ ) {
+        TTtrack->fill(trkHandle->at(i)); //JH
+
+        auto track = trkHandle->refAt(i);
+        auto TPfound = recSimColl.find(track);
+        if (TPfound != recSimColl.end()) {
+          const auto& TPmatch = TPfound->val;
+          TTtrack->fillBestTP(TPmatch[0].first);
+          TTtrack->fillBestTPsharedFrac(TPmatch[0].second);
+          TTtrack->fillmatchedTPsize(TPmatch.size());
+        } else {  // to sync vector size
+          TTtrack->fillDummyTP();
+          TTtrack->fillBestTPsharedFrac(-99999.);
+          TTtrack->fillmatchedTPsize(0);
+        }
+
+        // -- fill dummy
+        TTtrack->linkIterL3(-1);
+        TTtrack->linkIterL3NoId(-1);
+        TTtrack->fillMva( -99999., -99999., -99999., -99999. );
+
+        /* JH : we don't use this
+        if(doIso) {
+          vector<float> trkIsolations = {};
+          vector<float> pfIsolations = {};
+
+          reco::RecoChargedCandidateRef muRef(h_L3Muon, i);
+          // if( fabs(trkHandle->at(i).pt() - muRef->pt()) / muRef->pt() > 0.001 ||
+          //     fabs(trkHandle->at(i).eta() - muRef->eta()) > 0.001 ||
+          //     fabs(trkHandle->at(i).phi() - muRef->phi()) > 0.001
+          // ) {
+          //   throw cms::Exception("ConfigurationError")
+          //       << "L3 muon candidate != corresponding track";
+          // }
+
+          for( unsigned int ii = 0; ii < trkIsoTags_.size(); ++ii) {
+
+            edm::Handle<reco::IsoDepositMap> trkIsoMap;
+            if( iEvent.getByToken(trkIsoTokens_.at(ii), trkIsoMap) ) {
+
+              reco::IsoDeposit trkIso = (*trkIsoMap)[muRef];
+              TString Tag_tstr = TString(trkIsoTags_.at(ii));
+              float dR = 0.0;
+              if(Tag_tstr.Contains("dR0p1"))       dR = 0.1;
+              else if(Tag_tstr.Contains("dR0p2"))  dR = 0.2;
+              else if(Tag_tstr.Contains("dR0p3"))  dR = 0.3;
+              else if(Tag_tstr.Contains("dR0p4"))  dR = 0.4;
+              else if(Tag_tstr.Contains("dR0p5"))  dR = 0.5;
+              else if(Tag_tstr.Contains("dR0p6"))  dR = 0.6;
+              else if(Tag_tstr.Contains("dR0p7"))  dR = 0.7;
+              else if(Tag_tstr.Contains("dR0p8"))  dR = 0.8;
+              else if(Tag_tstr.Contains("dR0p9"))  dR = 0.9;
+              else if(Tag_tstr.Contains("dR1p0"))  dR = 1.0;
+              else                                 dR = 0.0;
+
+              trkIsolations.push_back( trkIso.depositWithin(dR) );
+            }
+            else {
+              trkIsolations.push_back( -99999. );
+            }
+          }
+
+          for( unsigned int ii = 0; ii < pfIsoTags_.size(); ++ii) {
+
+            edm::Handle<reco::RecoChargedCandidateIsolationMap> pfIsoMap;
+            if( iEvent.getByToken(pfIsoTokens_.at(ii), pfIsoMap) ) {
+
+              reco::RecoChargedCandidateIsolationMap::const_iterator pfIso = (*pfIsoMap).find( muRef );
+
+              pfIsolations.push_back( pfIso->val );
+            }
+            else {
+              pfIsolations.push_back( -99999. );
+            }
+          }
+
+          TTtrack->fillIso( trkIsolations, pfIsolations );
+        } */
+      }
+    }
+  }
+} //JH
+
+void MuonHLTNtupler::fill_tpTemplate(
+  const edm::Event &iEvent,
+  edm::EDGetTokenT<reco::SimToRecoCollection>& assoToken,
+  tpTemplate* TTtp
+) {
+
+  edm::Handle<TrackingParticleCollection> TPCollection;
+  if( iEvent.getByToken(trackingParticleToken, TPCollection) ) {
+
+    edm::Handle<reco::SimToRecoCollection> assoHandle;
+    if( iEvent.getByToken( assoToken, assoHandle ) ) {
+      auto simRecColl = *assoHandle.product();
+
+      for( unsigned int i = 0; i < TPCollection->size(); i++ ) {
+
+        auto tp = TPCollection->at(i);
+
+        if( !(tp.eventId().bunchCrossing() == 0 && tp.eventId().event() == 0) )
+          continue;
+
+        if( abs( tp.pdgId() ) != 13 )
+          continue;
+
+        bool isStable = true;
+        for (TrackingParticle::genp_iterator j = tp.genParticle_begin(); j != tp.genParticle_end(); ++j) {
+          if (j->get() == nullptr || j->get()->status() != 1) {
+            isStable = false;
+          }
+        }
+        if( tp.status() == -99 && (std::abs(tp.pdgId()) != 11 && std::abs(tp.pdgId()) != 13 && std::abs(tp.pdgId()) != 211 &&
+                                   std::abs(tp.pdgId()) != 321 && std::abs(tp.pdgId()) != 2212 && std::abs(tp.pdgId()) != 3112 &&
+                                   std::abs(tp.pdgId()) != 3222 && std::abs(tp.pdgId()) != 3312 && std::abs(tp.pdgId()) != 3334)
+        ) {
+          isStable = false;
+        }
+
+        if( !isStable )
+          continue;
+
+        TTtp->fill( tp );
+
+        TrackingParticleRef tpref(TPCollection, i);
+        auto TrkFound = simRecColl.find( tpref );
+        if( TrkFound != simRecColl.end() ) {
+          const auto& trkMatch = TrkFound->val;
+          TTtp->fill_matchedTrk(
+            trkMatch[0].first->pt(),
+            trkMatch[0].first->eta(),
+            trkMatch[0].first->phi(),
+            trkMatch[0].first->charge(),
+            trkMatch[0].second,
+            trkMatch[0].first->numberOfValidHits()
+          );
+        }
+        else {
+          TTtp->fill_matchedTrk(
+            -99999.,
+            -99999.,
+            -99999.,
+            -99999,
+            -99999.,
+            -99999
+          );
+        }
+      }
+    }
+  }
+} //JH
+
 // -- reference: https://github.com/cms-sw/cmssw/blob/master/DataFormats/MuonReco/src/MuonSelectors.cc#L910-L938
 bool MuonHLTNtupler::isNewHighPtMuon(const reco::Muon& muon, const reco::Vertex& vtx){
   if(!muon.isGlobalMuon()) return false;
@@ -2319,6 +2712,12 @@ void MuonHLTNtupler::endJob() {
     // delete mvaHltIter3IterL3FromL1MuonPixelSeeds_.at(i).first;
     // delete mvaHltIter3IterL3FromL1MuonPixelSeeds_.at(i).second;
   }
+
+  for( unsigned int i = 0; i < trackCollectionNames_.size(); ++i) {
+    delete trkTemplates_.at(i);
+    delete tpTemplates_.at(i);
+  } //JH
+
 }
 
 void MuonHLTNtupler::beginRun(const edm::Run &iRun, const edm::EventSetup &iSetup) {}

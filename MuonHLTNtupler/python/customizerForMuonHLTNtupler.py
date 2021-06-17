@@ -25,7 +25,140 @@ def customizerFuncForMuonHLTNtupler(process, newProcessName = "MYHLT", doDYSkim 
     process.hltTrackAssociatorByHits.UseGrouped               = cms.bool( False )
     process.hltTrackAssociatorByHits.UseSplitting             = cms.bool( False )
     process.hltTrackAssociatorByHits.ThreeHitTracksAreSpecial = cms.bool( False )
+
+    # -- track - TP associations
+    import SimMuon.MCTruth.MuonTrackProducer_cfi
+    process.hltIterL3MuonsNoIDTracks = SimMuon.MCTruth.MuonTrackProducer_cfi.muonTrackProducer.clone()
+    process.hltIterL3MuonsNoIDTracks.muonsTag                      = cms.InputTag("hltIterL3MuonsNoID")
+    process.hltIterL3MuonsNoIDTracks.selectionTags                 = ('All',)
+    process.hltIterL3MuonsNoIDTracks.trackType                     = "recomuonTrack"
+    process.hltIterL3MuonsNoIDTracks.ignoreMissingMuonCollection   = True
+    process.hltIterL3MuonsNoIDTracks.inputCSCSegmentCollection     = cms.InputTag("hltCscSegments")
+    process.hltIterL3MuonsNoIDTracks.inputDTRecSegment4DCollection = cms.InputTag("hltDt4DSegments")
+
+    process.hltIterL3MuonsTracks = SimMuon.MCTruth.MuonTrackProducer_cfi.muonTrackProducer.clone()
+    process.hltIterL3MuonsTracks.muonsTag                          = cms.InputTag("hltIterL3Muons")
+    process.hltIterL3MuonsTracks.selectionTags                     = ('All',)
+    process.hltIterL3MuonsTracks.trackType                         = "recomuonTrack"
+    process.hltIterL3MuonsTracks.ignoreMissingMuonCollection       = True
+    process.hltIterL3MuonsTracks.inputCSCSegmentCollection         = cms.InputTag("hltCscSegments")
+    process.hltIterL3MuonsTracks.inputDTRecSegment4DCollection     = cms.InputTag("hltDt4DSegments")
+
+    from SimMuon.MCTruth.MuonAssociatorByHits_cfi import muonAssociatorByHits as _muonAssociatorByHits
+    hltMuonAssociatorByHits = _muonAssociatorByHits.clone()
+    hltMuonAssociatorByHits.PurityCut_track              = 0.75
+    hltMuonAssociatorByHits.PurityCut_muon               = 0.75
+    hltMuonAssociatorByHits.DTrechitTag                  = 'hltDt1DRecHits'
+    hltMuonAssociatorByHits.ignoreMissingTrackCollection = True
+    hltMuonAssociatorByHits.UseTracker                   = True
+    hltMuonAssociatorByHits.UseMuon                      = True
+
+    process.AhltIterL3OIMuonTrackSelectionHighPurity            = hltMuonAssociatorByHits.clone( tracksTag = 'hltIterL3OIMuonTrackSelectionHighPurity' )
+    process.AhltIter0IterL3MuonTrackSelectionHighPurity = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter0IterL3MuonTrackSelectionHighPurity' )
+    process.AhltIter2IterL3MuonTrackSelectionHighPurity = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter2IterL3MuonTrackSelectionHighPurity' )
+    process.AhltIter0IterL3FromL1MuonTrackSelectionHighPurity = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter0IterL3FromL1MuonTrackSelectionHighPurity' )
+    process.AhltIter2IterL3FromL1MuonTrackSelectionHighPurity = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter2IterL3FromL1MuonTrackSelectionHighPurity' )
+    process.AhltIter2IterL3MuonMerged                   = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter2IterL3MuonMerged' )
+    process.AhltIter2IterL3FromL1MuonMerged                   = hltMuonAssociatorByHits.clone( tracksTag = 'hltIter2IterL3FromL1MuonMerged' )
+    process.AhltIterL3MuonMerged                   = hltMuonAssociatorByHits.clone( tracksTag = 'hltIterL3MuonMerged' )
+    process.AhltIterL3MuonAndMuonFromL1Merged                   = hltMuonAssociatorByHits.clone( tracksTag = 'hltIterL3MuonAndMuonFromL1Merged' )
+    process.AhltIterL3MuonsNoID                                 = hltMuonAssociatorByHits.clone( tracksTag = 'hltIterL3MuonsNoIDTracks' )
+    process.AhltIterL3Muons                                     = hltMuonAssociatorByHits.clone( tracksTag = 'hltIterL3MuonsTracks' )
+
+    trackNames = [
+        'hltIterL3OIMuonTrackAssociated',
+        'hltIter0IterL3MuonTrackAssociated',
+        'hltIter2IterL3MuonTrackAssociated',
+        'hltIter0IterL3FromL1MuonTrackAssociated',
+        'hltIter2IterL3FromL1MuonTrackAssociated',
+        'hltIter2IterL3MuonMergedAssociated',
+        'hltIter2IterL3FromL1MuonMergedAssociated',
+        'hltIterL3MuonMergedAssociated',
+        'hltIterL3MuonAndMuonFromL1MergedAssociated',
+        'iterL3MuonNoIDTrackAssociated',
+        'iterL3MuonTrackAssociated'
+    ]
+
+    trackLabels = [
+        'hltIterL3OIMuonTrackSelectionHighPurity',
+        'hltIter0IterL3MuonTrackSelectionHighPurity',
+        'hltIter2IterL3MuonTrackSelectionHighPurity',
+        'hltIter0IterL3FromL1MuonTrackSelectionHighPurity',
+        'hltIter2IterL3FromL1MuonTrackSelectionHighPurity',
+        'hltIter2IterL3MuonMerged',
+        'hltIter2IterL3FromL1MuonMerged',
+        'hltIterL3MuonMerged',
+        'hltIterL3MuonAndMuonFromL1Merged',
+        'hltIterL3MuonsNoIDTracks',
+        'hltIterL3MuonsTracks'
+    ]
+
+    assoLabels = [
+        'AhltIterL3OIMuonTrackSelectionHighPurity',
+        'AhltIter0IterL3MuonTrackSelectionHighPurity',
+        'AhltIter2IterL3MuonTrackSelectionHighPurity',
+        'AhltIter0IterL3FromL1MuonTrackSelectionHighPurity',
+        'AhltIter2IterL3FromL1MuonTrackSelectionHighPurity',
+        'AhltIter2IterL3MuonMerged',
+        'AhltIter2IterL3FromL1MuonMerged',
+        'AhltIterL3MuonMerged',
+        'AhltIterL3MuonAndMuonFromL1Merged',
+        'AhltIterL3MuonsNoID',
+        'AhltIterL3Muons'
+    ]
+
+    process.trackAssoSeq = cms.Sequence(
+        process.hltIterL3MuonsNoIDTracks +
+        process.hltIterL3MuonsTracks +
+        process.AhltIterL3OIMuonTrackSelectionHighPurity +
+        process.AhltIter0IterL3MuonTrackSelectionHighPurity +
+        process.AhltIter2IterL3MuonTrackSelectionHighPurity +
+        process.AhltIter0IterL3FromL1MuonTrackSelectionHighPurity +
+        process.AhltIter2IterL3FromL1MuonTrackSelectionHighPurity +
+        process.AhltIter2IterL3MuonMerged +
+        process.AhltIter2IterL3FromL1MuonMerged +
+        process.AhltIterL3MuonMerged +
+        process.AhltIterL3MuonAndMuonFromL1Merged +
+        process.AhltIterL3MuonsNoID +
+        process.AhltIterL3Muons
+    ) #JH
+
+    # -- L1 Trigger matching
+    from MuonAnalysis.MuonAssociators.muonL1Match_cfi import muonL1Match as _muonL1Match
+    process.muonL1Info = _muonL1Match.clone(
+        src = cms.InputTag("genParticles"),
+        useMB2InOverlap = cms.bool(True),
+        useStage2L1 = cms.bool(True),
+        preselection = cms.string(""),
+        matched = cms.InputTag("hltGtStage2Digis:Muon:"),
+        useTrack = cms.string("none")
+    )
+    process.muonL1InfoByQ = process.muonL1Info.clone(
+        sortBy = cms.string("quality"),
+        sortByQual     = cms.bool(True), #JH : see MuonAnalysis/MuonAssociators/src/L1MuonMatcherAlgo.cc
+        sortByDeltaPhi = cms.bool(False),
+        sortByDeltaEta = cms.bool(False),
+        sortByPt       = cms.bool(False)
+    )
+
+    process.L1AssoSeq = cms.Sequence(
+        process.muonL1Info +
+        process.muonL1InfoByQ
+    ) #JH
+
     process.ntupler = ntuplerBase.clone()
+
+    process.ntupler.trackCollectionNames  = cms.untracked.vstring(   trackNames )
+    process.ntupler.trackCollectionLabels = cms.untracked.VInputTag( trackLabels )
+    process.ntupler.associationLabels     = cms.untracked.VInputTag( assoLabels ) #JH
+
+    process.ntupler.genParticles = cms.InputTag("genParticles")
+    process.ntupler.l1Matches = cms.InputTag("muonL1Info")
+    process.ntupler.l1MatchesQuality = cms.InputTag("muonL1Info", "quality")
+    process.ntupler.l1MatchesDeltaR = cms.InputTag("muonL1Info", "deltaR")
+    process.ntupler.l1MatchesByQ = cms.InputTag("muonL1InfoByQ")
+    process.ntupler.l1MatchesByQQuality = cms.InputTag("muonL1InfoByQ", "quality")
+    process.ntupler.l1MatchesByQDeltaR = cms.InputTag("muonL1InfoByQ", "deltaR") #JH
 
     # -- set to the new process name
     process.ntupler.myTriggerResults = cms.untracked.InputTag("TriggerResults",          "",     newProcessName)
@@ -199,8 +332,8 @@ def customizerFuncForMuonHLTNtupler(process, newProcessName = "MYHLT", doDYSkim 
     if doDYSkim:
         from MuonHLTTool.MuonHLTNtupler.DYmuSkimmer import DYmuSkimmer 
         process.Skimmer = DYmuSkimmer.clone()
-        process.mypath = cms.Path(process.Skimmer*process.hltTPClusterProducer*process.hltTrackAssociatorByHits*process.ntupler)
+        process.mypath = cms.Path(process.Skimmer*process.hltTPClusterProducer*process.hltTrackAssociatorByHits*process.trackAssoSeq*process.L1AssoSeq*process.ntupler)
     else:
-        process.mypath = cms.Path(process.hltTPClusterProducer*process.hltTrackAssociatorByHits*process.ntupler)
+        process.mypath = cms.Path(process.hltTPClusterProducer*process.hltTrackAssociatorByHits*process.trackAssoSeq*process.L1AssoSeq*process.ntupler) #JH
 
     return process

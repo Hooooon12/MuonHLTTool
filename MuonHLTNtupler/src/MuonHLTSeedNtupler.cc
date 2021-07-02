@@ -71,6 +71,7 @@ using namespace edm;
 MuonHLTSeedNtupler::MuonHLTSeedNtupler(const edm::ParameterSet& iConfig):
 // trackerHitAssociatorConfig_(iConfig, consumesCollector()),
 associatorToken(consumes<reco::TrackToTrackingParticleAssociator>(iConfig.getUntrackedParameter<edm::InputTag>("associator"))),
+seedAssociatorToken(consumes<reco::TrackToTrackingParticleAssociator>(iConfig.getUntrackedParameter<edm::InputTag>("seedAssociator"))),
 trackingParticleToken(consumes<TrackingParticleCollection>(iConfig.getUntrackedParameter<edm::InputTag>("trackingParticle"))),
 
 t_offlineVertex_     ( consumes< reco::VertexCollection >                 (iConfig.getUntrackedParameter<edm::InputTag>("offlineVertex"     )) ),
@@ -334,6 +335,10 @@ void MuonHLTSeedNtupler::fill_seedTemplate(
   int &nSeed
 ) {
 
+  edm::Handle<reco::TrackToTrackingParticleAssociator> theAssociator;
+  edm::Handle<TrackingParticleCollection> theTPCollection;
+  bool hasAsso = iEvent.getByToken(seedAssociatorToken, theAssociator) && iEvent.getByToken(trackingParticleToken, theTPCollection);
+
   edm::Handle<reco::GenParticleCollection> h_genParticle;
   bool hasGen = iEvent.getByToken(t_genParticle_, h_genParticle);
 
@@ -364,9 +369,8 @@ void MuonHLTSeedNtupler::fill_seedTemplate(
       int idxtmpL3 = (where==trkMap.end()) ? -1 : trkMap[seedTsod];
       ST->fill_TP(TTtrack, idxtmpL3 );
 
-      edm::Handle<reco::TrackToTrackingParticleAssociator> theAssociator;
-      edm::Handle<TrackingParticleCollection> theTPCollection;
-      if( iEvent.getByToken(associatorToken, theAssociator) && iEvent.getByToken(trackingParticleToken, theTPCollection) ) {
+      if( hasAsso )
+      {
         auto recSimColl = theAssociator->associateRecoToSim(seedHandle,theTPCollection);
         auto seed = seedHandle->refAt(i);
         auto TPfound = recSimColl.find(seed);
@@ -511,6 +515,10 @@ void MuonHLTSeedNtupler::fill_seedTemplate(
   int &nSeed
 ) {
 
+  edm::Handle<reco::TrackToTrackingParticleAssociator> theAssociator;
+  edm::Handle<TrackingParticleCollection> theTPCollection;
+  bool hasAsso = iEvent.getByToken(seedAssociatorToken, theAssociator) && iEvent.getByToken(trackingParticleToken, theTPCollection);
+
   edm::Handle<reco::GenParticleCollection> h_genParticle;
   bool hasGen = iEvent.getByToken(t_genParticle_, h_genParticle);
 
@@ -544,9 +552,8 @@ void MuonHLTSeedNtupler::fill_seedTemplate(
       //cout<<"[SeedNtupler] fill_TP : i="<<i<<", index tmpL3="<<idxtmpL3<<endl;
       ST->fill_TP(TTtrack, idxtmpL3 );
 
-      edm::Handle<reco::TrackToTrackingParticleAssociator> theAssociator;
-      edm::Handle<TrackingParticleCollection> theTPCollection;
-      if( iEvent.getByToken(associatorToken, theAssociator) && iEvent.getByToken(trackingParticleToken, theTPCollection) ) {
+      if( hasAsso )
+      {
         auto recSimColl = theAssociator->associateRecoToSim(seedHandle,theTPCollection);
         auto seed = seedHandle->refAt(i);
         auto TPfound = recSimColl.find(seed);
